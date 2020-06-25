@@ -1,0 +1,395 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+'''
+My module to plot a serie of files.
+'''
+
+import argparse as ap
+import os
+import sys
+
+import re
+import GCcolors
+from itertools import cycle
+
+import numpy as np
+import scipy as sp
+from scipy.signal import savgol_filter
+from scipy.interpolate import interp1d
+
+from matplotlib import pyplot as plt
+# plt.rcParams.update({'lines.markeredgewidth': 4})
+plt.rcParams.update({'font.size': 22, 'lines.linewidth': 3.})
+
+def read_columns(fle, columns_list, fmt, skip):
+    '''
+    Reads input file and returns a list
+    containing columns' numbers followed
+    by array slices containing data.
+    '''
+    data = np.loadtxt(fle, skiprows=skip)
+    output = [fle]
+    for pair in columns_list:
+        partition = pair[0].split(':')
+        x = int(partition[0])
+        y = int(partition[1])
+        if fmt == 'xydy':
+            dy = int(partition[2])
+        elif fmt == 'xydx':
+            dx = int(partition[2])
+        elif fmt == 'xydxdy':
+            dx = int(partition[2])
+            dy = int(partition[3])
+        x_data = data[:, x-1]
+        y_data = data[:, y-1]
+        if fmt == 'xy':
+            output.append([x, y, x_data, y_data])
+        elif fmt == 'xydy':
+            dy_data = data[:, dy-1]
+            output.append([x, y, x_data, y_data, dy_data])
+        elif fmt == 'xydx':
+            dx_data = data[:, dx-1]
+            output.append([x, y, x_data, y_data, dx_data])
+        elif fmt == 'xydxdy':
+            dx_data = data[:, dx-1]
+            dy_data = data[:, dy-1]
+            output.append([x, y, x_data, y_data, dx_data, dy_data])
+    return output
+
+
+def plot_sep_col(data, colors, fmt, is_log, legend):
+    '''
+    Makes separated ordered columns
+    wise: all 1:2 together, all 1:3 together
+    and so on...
+    '''
+    columns = []
+    for d in data:
+        for s in d[1:]:
+            columns.append([s[0], s[1]])
+    for i in range(len(columns)):
+        try:
+            x = columns[i][0]
+            y = columns[i][1]
+            j = i
+            while True:
+                try:
+                    j += 1
+                    pair = columns[j]
+                    if pair[0] == x and pair[1] == y:
+                        columns.pop(j)
+                except IndexError:
+                    break
+        except IndexError:
+            break
+
+    plot_nb = len(columns)
+    if plot_nb % 3 == 0:
+        fig, axes = plt.subplots(plot_nb//3, 3, sharex=True, figsize=(20, 10))
+    elif plot_nb % 2 == 0:
+        fig, axes = plt.subplots(plot_nb//2, 2, sharex=True, figsize=(20, 10))
+    else:
+        fig, axes = plt.subplots(plot_nb, 1, sharex=True, figsize=(20, 10))
+    for pair, ax in zip(columns, axes.flatten()):
+        color_iter = cycle(colors)
+        suf = ":".join([str(pair[0]), str(pair[1])])
+        for d in data:
+            color = next(color_iter)
+            label = d[0]
+            for subdata in d[1:]:
+                x = subdata[0]
+                y = subdata[1]
+                if not(x == pair[0] and y == pair[1]):
+                    continue
+                lab = label
+                x_data = subdata[2]
+                y_data = subdata[3]
+                if fmt == 'xy':
+                    ax.plot(x_data, y_data,
+                            label=lab, color=color
+                            )
+                elif fmt == 'xydy':
+                    dy = subdata[4]
+                    plt.plot(x_data, y_data,
+                            label=lab, color=color
+                            )
+                    up = y_data+dy
+                    down = y_data-dy
+                    plt.fill_between(
+                            x_data, up, down,
+                            alpha=0.2, edgecolor=color, facecolor=color,
+                            linewidth=0
+                            )
+                    # ax.errorbar(x_data, y_data,
+                    #             yerr=dy,
+                    #             capsize=4, capthick=2,
+                    #             label=lab, color=color
+                    #             )
+                elif fmt == 'xydx':
+                    dx = subdata[4]
+                    ax.errorbar(x_data, y_data,
+                                xerr=dx,
+                                capsize=4, capthick=2,
+                                label=lab, color=color
+                                )
+                elif fmt == 'xydxdy':
+                    dx = subdata[4]
+                    dy = subdata[5]
+                    ax.errorbar(x_data, y_data,
+                                xerr=dx, yerr=dy,
+                                capsize=4, capthick=2,
+                                label=lab, color=color
+                                )
+                if is_log:
+                    ax.set_xscale('log')
+                    ax.set_yscale('log')
+                color = next(color_iter)
+        if legend:
+            ax.legend(loc='upper left')
+        ax.set(title=suf)
+
+    return [fig, axes]
+
+
+def plot_sep_fil(data, colors, fmt, is_log, legend):
+    plot_nb = len(data)
+    if plot_nb % 3 == 0:
+        fig, axes = plt.subplots(plot_nb//3, 3, sharex=True, figsize=(20, 10))
+    elif plot_nb % 2 == 0:
+        fig, axes = plt.subplots(plot_nb//2, 2, sharex=True, figsize=(20, 10))
+    else:
+        fig, axes = plt.subplots(plot_nb, 1, sharex=True, figsize=(20, 10))
+    for d, ax in zip(data, axes.flatten()):
+        color_iter = cycle(colors)
+        suf = d[0]
+        color = next(color_iter)
+        for subdata in d[1:]:
+            x = subdata[0]
+            y = subdata[1]
+            lab = ":".join([str(x), str(y)])
+            x_data = subdata[2]
+            y_data = subdata[3]
+            if fmt == 'xy':
+                ax.plot(x_data, y_data,
+                        label=lab, color=color
+                        )
+            elif fmt == 'xydy':
+                dy = subdata[4]
+                plt.plot(x_data, y_data,
+                        label=lab, color=color
+                        )
+                up = y_data+dy
+                down = y_data-dy
+                plt.fill_between(
+                        x_data, up, down,
+                        alpha=0.2, edgecolor=color, facecolor=color,
+                        linewidth=0
+                        )
+                # ax.errorbar(x_data, y_data,
+                #             yerr=dy,
+                #             capsize=4, capthick=2,
+                #             label=lab, color=color
+                #             )
+            elif fmt == 'xydx':
+                dx = subdata[4]
+                ax.errorbar(x_data, y_data,
+                            xerr=dx,
+                            capsize=4, capthick=2,
+                            label=lab, color=color
+                            )
+            elif fmt == 'xydxdy':
+                dx = subdata[4]
+                dy = subdata[5]
+                ax.errorbar(x_data, y_data,
+                            xerr=dx, yerr=dy,
+                            capsize=4, capthick=2,
+                            label=lab, color=color
+                            )
+            if is_log:
+                ax.set_xscale('log')
+                ax.set_yscale('log')
+            color = next(color_iter)
+        if legend:
+            ax.legend(loc='upper left')
+        ax.set(title=suf)
+
+    return [fig, axes]
+
+
+def plot_data(data, colors, fmt, is_log, legend, names):
+    color_iter = cycle(colors)
+    plt.figure(figsize=(40, 30))
+    namelist=iter(names)
+    for d in data:
+        color = next(color_iter)
+        try:
+            label = next(namelist)
+        except StopIteration:
+            label = False
+        for subdata in d[1:]:
+            x = subdata[0]
+            y = subdata[1]
+            if not label: 
+                label = d[0]
+                suf = ":".join([str(x), str(y)])
+                lab = label+suf
+            else:
+                lab = label
+            x_data = subdata[2]
+            y_data = subdata[3]
+            if fmt == 'xy':
+                plt.plot(x_data, y_data,
+                         label=lab, color=color
+                         )
+            elif fmt == 'xydy':
+                dy = subdata[4]
+                plt.plot(x_data, y_data,
+                        label=lab, color=color
+                        )
+                up = y_data+dy
+                down = y_data-dy
+                plt.fill_between(
+                        x_data, up, down,
+                        alpha=0.2, edgecolor=color, facecolor=color,
+                        linewidth=0
+                        )
+                # plt.errorbar(x_data, y_data,
+                #              yerr=dy,
+                #              capsize=4, capthick=2,
+                #              label=lab, color=color
+                #              )
+            elif fmt == 'xydx':
+                dx = subdata[4]
+                plt.errorbar(x_data, y_data,
+                             xerr=dx,
+                             capsize=4, capthick=2,
+                             label=lab, color=color
+                             )
+            elif fmt == 'xydxdy':
+                dx = subdata[4]
+                dy = subdata[5]
+                plt.errorbar(x_data, y_data,
+                             xerr=dx, yerr=dy,
+                             capsize=4, capthick=2,
+                             label=lab, color=color
+                             )
+            if is_log:
+                plt.xscale('log')
+                plt.yscale('log')
+            color = next(color_iter)
+    if legend:
+        # plt.legend(loc='upper left')
+        plt.legend()
+    return
+
+
+def main():
+    '''
+    Main function.
+    '''
+    parser = ap.ArgumentParser(description='Script to plot a list of files.')
+    parser.add_argument('-v', '--verbose', dest='verbosity',
+                        action='store_true', help='Verbosity.')
+    parser.add_argument('-sf', '--separated-files', dest='sf',
+                        default=False, action='store_true',
+                        help='Plot in separated windows based on filename. [default = False]')
+    parser.add_argument('-sc', '--separated-columns', dest='sc',
+                        default=False, action='store_true',
+                        help='Plot in separated windows based on columns. [default = False]')
+    parser.add_argument('-fmt', '--fmt', dest='fmt',
+                        default='xy',
+                        help='Format of the plot (xy, xydy, xydxdy, xydx). [default = xy]')
+    parser.add_argument('-i', '--input', dest='input',
+                        nargs='+', action='append',
+                        help='File name followed by columns and optionally lines to skip.')
+    parser.add_argument('-n', '--names', dest='names',
+                        nargs='+', action='append',
+                        help='Names for the legend.')
+    parser.add_argument('-l', '--loglog', dest='is_log',
+                        action='store_true',
+                        help='Plot in loglog scale.')
+    parser.add_argument('-t', '--title', dest='ttl', default='Your nice graph',
+                        type=str, help='Title of the plot.')
+    parser.add_argument('-xl', '--xlabel', dest='xlab',
+                        default=False, help='label for x')
+    parser.add_argument('-yl', '--ylabel', dest='ylab',
+                        default=False, help='label for y')
+    parser.add_argument('-nl', '--no-legend', dest='no_legend', action='store_true',
+                        help='removes the legend')
+
+    args = parser.parse_args()
+
+    verbose = args.verbosity
+    sep_files = args.sf
+    sep_col = args.sc
+    fmt = args.fmt
+    inpt = args.input
+    graph_title = args.ttl
+    xlab = args.xlab
+    ylab = args.ylab
+    is_log = args.is_log
+    names = args.names[0]
+    legend = not args.no_legend
+
+    if not inpt:
+        sys.exit('No file provided as input source.')
+    else:
+        for i in inpt:
+            if not os.path.isfile(i[0]):
+                sys.exit('Did not find file '+i[0]+'.')
+
+    if fmt == 'xy':
+        regex = re.compile(r'\d+:\d+')
+    elif fmt == 'xydy' or fmt == 'xydx':
+        regex = re.compile(r'\d+:\d+:\d+')
+    elif fmt == 'xydxdy':
+        regex = re.compile(r'\d+:\d+:\d+:\d+')
+    else:
+        sys.exit('Unknown fmt in -fmt option.')
+
+    regex_sk = re.compile(r'^\d+$')
+    colors = ['black', 'darkred', 'red',
+              'orangered', 'darkorange', 'orange',
+              'olive', 'darkolivegreen', 'chartreuse',
+              'forestgreen', 'lightseagreen', 'lightskyblue',
+              'steelblue', 'blue', 'darkblue', 'indigo']
+
+    colors = GCcolors.color_list
+    columns_list = []
+    data = []
+
+    for i in inpt:
+        fle = i[0]
+        columns_list = []
+        for column in i[1:]:
+            bingo = regex.findall(column)
+            if bingo:
+                columns_list.append(bingo)
+        temp = regex_sk.findall(i[-1])
+        if temp:
+            skip = int(temp[0])
+        else:
+            skip = 0
+
+        data.append(read_columns(fle, columns_list, fmt, skip))
+
+    if sep_col:
+        fig, axes = plot_sep_col(data, colors, fmt, is_log, legend)
+    elif sep_files:
+        fig, axes = plot_sep_fil(data, colors, fmt, is_log, legend)
+    else:
+        plot_data(data, colors, fmt, is_log, legend, names)
+
+    plt.xlabel(xlab)
+    plt.ylabel(ylab)
+    plt.title(graph_title)
+    plt.show()
+    return
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit("User interruption.")

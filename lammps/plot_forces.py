@@ -13,6 +13,7 @@ import sys
 import GCcolors
 from matplotlib import pyplot as plt
 
+
 def compute_energy(tp):
     r = tp[0]
     fo = tp[2]
@@ -24,6 +25,7 @@ def compute_energy(tp):
         e[i] = e[i-1]-dr*fo[i-1]
     e -= e[-1]
     return e
+
 
 def main():
 
@@ -58,6 +60,12 @@ def main():
         help="yrange : separated",
     )
     parser.add_argument(
+        "-t",
+        dest="temp",
+        default=-1, type=float,
+        help="temperature for kbT plot [default none]",
+    )
+    parser.add_argument(
         "-e",
         dest="extract",
         action="store_true",
@@ -69,6 +77,8 @@ def main():
     # Manage arguments
 
     # -v/--verbose
+
+    kb = 0.001985875  # kcal/K/mol
 
     try:
         utilsscript.init_logging(args.verbosity)
@@ -112,10 +122,16 @@ def main():
     for tp in toplot:
         tp[1] = compute_energy(tp)
 
-    fig, axes = plt.subplots(1,2)
+    fig, axes = plt.subplots(1, 2)
+
     for tp in toplot:
         axes[0].plot(tp[0], tp[1], label=tp[3], linewidth=3)
         axes[1].plot(tp[0], tp[2], label=tp[3], linewidth=3)
+
+    if args.temp > 0:
+        hmin, hmax = axes[0].get_xlim()
+        axes[0].hlines(kb*args.temp, hmin, hmax, color="orange", linewidth=3, linestyles="dashdot")
+
     if args.xrange:
         xmin, xmax = list(map(float, args.xrange.split(":")))
         axes[0].set_xlim(xmin, xmax)
@@ -144,7 +160,7 @@ def main():
 
     plt.subplots_adjust(wspace=0.3)
     plt.show()
-    
+
     if args.extract:
         for tp in toplot:
             outfile = "".join([tp[3], '.plot'])

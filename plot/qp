@@ -11,6 +11,7 @@ import sys
 
 import re
 import GCcolors
+import povray as pov
 from itertools import cycle
 
 import numpy as np
@@ -22,7 +23,8 @@ from matplotlib import pyplot as plt
 # plt.rcParams.update({'lines.markeredgewidth': 4})
 plt.rcParams.update({'font.size': 22, 'lines.linewidth': 3.})
 
-def read_columns(fle, columns_list, fmt, skip):
+
+def read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg):
     '''
     Reads input file and returns a list
     containing columns' numbers followed
@@ -41,19 +43,21 @@ def read_columns(fle, columns_list, fmt, skip):
         elif fmt == 'xydxdy':
             dx = int(partition[2])
             dy = int(partition[3])
-        x_data = data[:, x-1]
-        y_data = data[:, y-1]
+        x_data = xsca*data[:, x-1]
+        y_data = ysca*data[:, y-1]
+        if sg:
+            y_data = savgol_filter(y_data, sg, 3)
         if fmt == 'xy':
             output.append([x, y, x_data, y_data])
         elif fmt == 'xydy':
-            dy_data = data[:, dy-1]
+            dy_data = ysca*data[:, dy-1]
             output.append([x, y, x_data, y_data, dy_data])
         elif fmt == 'xydx':
-            dx_data = data[:, dx-1]
+            dx_data = xsca*data[:, dx-1]
             output.append([x, y, x_data, y_data, dx_data])
         elif fmt == 'xydxdy':
-            dx_data = data[:, dx-1]
-            dy_data = data[:, dy-1]
+            dx_data = xsca*data[:, dx-1]
+            dy_data = ysca*data[:, dy-1]
             output.append([x, y, x_data, y_data, dx_data, dy_data])
     return output
 
@@ -141,12 +145,14 @@ def plot_sep_col(data, colors, fmt, is_log, legend):
                                 capsize=4, capthick=2,
                                 label=lab, color=color
                                 )
-                if is_log:
+                if is_log[0]:
                     ax.set_xscale('log')
+                if is_log[1]:
                     ax.set_yscale('log')
-                color = next(color_iter)
+                # color = next(color_iter)
         if legend:
-            ax.legend(loc='upper left')
+            ncol = max([1, len(data)//3])
+            ax.legend(loc='upper left', ncol=ncol)
         ax.set(title=suf)
 
     return [fig, axes]
@@ -206,12 +212,14 @@ def plot_sep_fil(data, colors, fmt, is_log, legend):
                             capsize=4, capthick=2,
                             label=lab, color=color
                             )
-            if is_log:
+            if is_log[0]:
                 ax.set_xscale('log')
+            if is_log[1]:
                 ax.set_yscale('log')
-            color = next(color_iter)
+            # color = next(color_iter)
         if legend:
-            ax.legend(loc='upper left')
+            ncol = max([1, len(data)//3])
+            ax.legend(loc='upper left', ncol=ncol)
         ax.set(title=suf)
 
     return [fig, axes]
@@ -274,13 +282,15 @@ def plot_data(data, colors, fmt, is_log, legend, names):
                              capsize=4, capthick=2,
                              label=lab, color=color
                              )
-            if is_log:
+            if is_log[0]:
                 plt.xscale('log')
+            if is_log[1]:
                 plt.yscale('log')
-            color = next(color_iter)
+            # color = next(color_iter)
     if legend:
         # plt.legend(loc='upper left')
-        plt.legend()
+        ncol = max([1, len(data)//3])
+        plt.legend(ncol=ncol)
     return
 
 
@@ -305,18 +315,37 @@ def main():
                         help='File name followed by columns and optionally lines to skip.')
     parser.add_argument('-n', '--names', dest='names',
                         nargs='+', action='append',
+                        default=[],
                         help='Names for the legend.')
-    parser.add_argument('-l', '--loglog', dest='is_log',
+    parser.add_argument('-l', '--loglog', dest='is_log_xy',
                         action='store_true',
                         help='Plot in loglog scale.')
+    parser.add_argument('-lx', '--logx', dest='is_log_x',
+                        action='store_true',
+                        help='Plot in semilog scale (x).')
+    parser.add_argument('-ly', '--logy', dest='is_log_y',
+                        action='store_true',
+                        help='Plot in semilog scale (y).')
     parser.add_argument('-t', '--title', dest='ttl', default='Your nice graph',
                         type=str, help='Title of the plot.')
     parser.add_argument('-xl', '--xlabel', dest='xlab',
                         default=False, help='label for x')
     parser.add_argument('-yl', '--ylabel', dest='ylab',
                         default=False, help='label for y')
+    parser.add_argument('-xs', '--xscale', dest='xsca',
+                        type=float, default=1, help='scale for x')
+    parser.add_argument('-ys', '--yscale', dest='ysca',
+                        type=float, default=1, help='scale for y')
     parser.add_argument('-nl', '--no-legend', dest='no_legend', action='store_true',
                         help='removes the legend')
+    parser.add_argument('-nGC', '--no-colors', dest='noGC', action='store_true',
+                        help='no nice colors')
+    parser.add_argument('-gr', '--gradient', dest='grad',
+                        type=int, default=0,
+                        help='use n colors from aquatic gradient (thanks Florent)')
+    parser.add_argument('-sg', '--savitsky-golay',
+                        dest='SG', type=int, default=0,
+                        help='Savitsky-golay window (default=0=none)')
 
     args = parser.parse_args()
 
@@ -328,9 +357,29 @@ def main():
     graph_title = args.ttl
     xlab = args.xlab
     ylab = args.ylab
-    is_log = args.is_log
-    names = args.names[0]
+    xsca = args.xsca
+    ysca = args.ysca
+
+    is_log_xy = args.is_log_xy
+    is_log_x = args.is_log_x
+    is_log_y = args.is_log_y
+    if is_log_xy:
+        is_log = (1, 1)
+    elif is_log_x:
+        is_log = (1, 0)
+    elif is_log_y:
+        is_log = (0, 1)
+    else:
+        is_log = (0, 0)
+
+    sg = args.SG
+    grad = args.grad
+    if args.names:
+        names = args.names[0]
+    else:
+        names = ['']
     legend = not args.no_legend
+    noGC = args.noGC
 
     if not inpt:
         sys.exit('No file provided as input source.')
@@ -349,13 +398,22 @@ def main():
         sys.exit('Unknown fmt in -fmt option.')
 
     regex_sk = re.compile(r'^\d+$')
-    colors = ['black', 'darkred', 'red',
-              'orangered', 'darkorange', 'orange',
-              'olive', 'darkolivegreen', 'chartreuse',
-              'forestgreen', 'lightseagreen', 'lightskyblue',
-              'steelblue', 'blue', 'darkblue', 'indigo']
-
-    colors = GCcolors.color_list
+    if noGC:
+        colors = ['black', 'darkred', 'red',
+                  'orangered', 'darkorange', 'orange',
+                  'olive', 'darkolivegreen', 'chartreuse',
+                  'forestgreen', 'lightseagreen', 'lightskyblue',
+                  'steelblue', 'blue', 'darkblue', 'indigo']
+    elif grad:
+        colors = []
+        g = pov.gradient(name='aquatic')
+        for i in range(grad):
+            x = i/grad
+            c = g.extract(x)
+            color = (c.r, c.g, c.b)
+            colors.append(color)
+    else:
+        colors = GCcolors.color_list
     columns_list = []
     data = []
 
@@ -372,7 +430,7 @@ def main():
         else:
             skip = 0
 
-        data.append(read_columns(fle, columns_list, fmt, skip))
+        data.append(read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg))
 
     if sep_col:
         fig, axes = plot_sep_col(data, colors, fmt, is_log, legend)

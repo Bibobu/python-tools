@@ -130,7 +130,7 @@ def main():
 
     if args.temp > 0:
         hmin, hmax = axes[0].get_xlim()
-        axes[0].hlines(kb*args.temp, hmin, hmax, color="orange", linewidth=3, linestyles="dashdot")
+        axes[0].hlines(kb*args.temp, hmin, hmax, color="orange", label=r'$k_BT$', linewidth=3, linestyles="dashdot")
 
     if args.xrange:
         xmin, xmax = list(map(float, args.xrange.split(":")))

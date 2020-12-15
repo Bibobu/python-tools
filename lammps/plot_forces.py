@@ -105,7 +105,7 @@ def main():
                 logging.info("Found {} token".format(tok))
                 infos = next(lines).split()
                 npoints = int(infos[1])
-                dummy = next(lines)
+                next(lines)
                 for i in range(npoints):
                     line = next(lines).split()
                     r.append(float(line[1]))
@@ -116,7 +116,7 @@ def main():
                 force = np.array(force)
                 toplot.append([r, ener, force, tok])
                 tok = []
-                dummy = next(lines)
+                next(lines)
             except StopIteration:
                 break
     for tp in toplot:
@@ -127,6 +127,8 @@ def main():
     for tp in toplot:
         axes[0].plot(tp[0], tp[1], label=tp[3], linewidth=3)
         axes[1].plot(tp[0], tp[2], label=tp[3], linewidth=3)
+        hmin, hmax = axes[1].get_xlim()
+        axes[1].hlines(0, hmin, hmax, color="black", linewidth=3, linestyles="dashdot")
 
     if args.temp > 0:
         hmin, hmax = axes[0].get_xlim()
@@ -146,7 +148,7 @@ def main():
 
     # Setting axes 0
     axes[0].set_title("Estimated energy", fontsize=fontsize)
-    axes[0].legend(frameon=False, fontsize=fontsize)  # Fat font, no frame
+    # axes[0].legend(frameon=False, fontsize=fontsize)  # Fat font, no frame
     axes[0].set_xlabel("r [A]", fontname=font, fontsize=fontsize)  # ylabel name, font is Hack, size 30pts
     axes[0].set_ylabel("E [kcal/mol]", fontname=font, fontsize=fontsize)  # ylabel name, font is Hack, size 30pts
     axes[0].tick_params(axis='both', which='major', labelsize=fontsize)  # Biggers ticks, bigger ticks label!
@@ -178,4 +180,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         raise SystemExit("User interruption.")
-

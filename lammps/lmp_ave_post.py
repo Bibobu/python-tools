@@ -9,8 +9,8 @@ and returns average and sem.
 import argparse
 import numpy as np
 import sys
+import os
 import logging
-import utilsscript
 
 
 def get_fields(infile, is_non_standard):
@@ -32,7 +32,7 @@ def get_fields(infile, is_non_standard):
     return fields
 
 
-def compute_mean(fields, infile):
+def compute_mean(fields, infile, stepmin, stepmax):
     '''
     Computes data ave and sem.
     '''
@@ -60,6 +60,11 @@ def compute_mean(fields, infile):
                 if not line:
                     break
                 step, nentries = int(line[0]), int(line[1])
+                keep = True
+                if stepmin and step < stepmin:
+                    keep = False
+                if stepmax and step > stepmax:
+                    break
                 if nrec % 1000 == 0:
                     logging.info(
                             "Reading record number {:<10d}, step {:<10.2f}."
@@ -72,10 +77,13 @@ def compute_mean(fields, infile):
                             )
                     sys.exit(1)
                 for i in range(nentries):
-                    line = list(map(float, f.readline().split()))
-                    for j, k in enumerate(fields):
-                        ave[i, j] += line[j]
-                nrec += 1
+                    if keep:
+                        line = list(map(float, f.readline().split()))
+                        for j, k in enumerate(fields):
+                            ave[i, j] += line[j]
+                    else:
+                        f.readline()
+                nrec += keep
             except EOFError:
                 break
 
@@ -92,6 +100,11 @@ def compute_mean(fields, infile):
             try:
                 line = line.split()
                 step, nentries = int(line[0]), int(line[1])
+                keep = True
+                if stepmin and step < stepmin:
+                    keep = False
+                if stepmax and step > stepmax:
+                    break
                 if nrec % 1000 == 0:
                     logging.info(
                             "Reading record number {:<10d}, step {:<10.2f}."
@@ -104,17 +117,19 @@ def compute_mean(fields, infile):
                             )
                     sys.exit(1)
                 for i in range(nentries):
-                    line = list(map(float, f.readline().split()))
-                    for j, k in enumerate(fields):
-                        sem[i, j] += (line[j] - ave[i, j])**2
-                nrec += 1
+                    if keep:
+                        line = list(map(float, f.readline().split()))
+                        for j, k in enumerate(fields):
+                            sem[i, j] += (line[j] - ave[i, j])**2
+                    else:
+                        f.readline()
+                nrec += keep
                 line = f.readline()
                 if not line:
                     break
             except EOFError:
                 break
     sem = np.sqrt(sem/nrec)
-
     return ave, sem
 
 
@@ -131,8 +146,8 @@ def write_output(outfile, fields, ave, sem):
             ]
     logging.info("About to write output file.")
     with open(outfile, 'w') as f:
-        line = " ".join(('#', *["{:^17}"]*len(fields), '\n'))
-        f.write(line.format(*fields))
+        line = " ".join(('#', *["{:^17}"]*len(fields)))
+        f.write(''.join([line.format(*fields).rstrip(), '\n']))
         for i, (a, s) in enumerate(zip(ave, sem)):
             # I found no nice way of doing this...
             elems = []
@@ -141,9 +156,9 @@ def write_output(outfile, fields, ave, sem):
                     if fi == 'Chunk':
                         elems.append("{:^17d}".format(i+1))
                     else:
-                        elems.append("{:>8.3f} {:>8.3f}".format(a[j], 0.))
+                        elems.append("{:>12.6f} {:>12.6f}".format(a[j], 0.))
                 else:
-                    elems.append("{:>8.3f} {:>8.3f}".format(a[j], s[j]))
+                    elems.append("{:>12.6f} {:>12.6f}".format(a[j], s[j]))
             line = " ".join((*elems, '\n'))
             f.write(line)
     logging.info("DONE!")
@@ -154,14 +169,6 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Script to compute lifetime of tubes of symmetric star polymers."
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        default=0,
-        action="count",
-        help="display more information",
     )
     parser.add_argument(
         "-f",
@@ -178,6 +185,20 @@ def main():
         help="Output file name.",
     )
     parser.add_argument(
+        "--smin",
+        dest="stepmin",
+        default=0,
+        type=int,
+        help="Minimum step to consider [default %s]"
+        )
+    parser.add_argument(
+        "--smax",
+        dest="stepmax",
+        default=0,
+        type=int,
+        help="Maximum step to consider, 0 for all [default %s]"
+        )
+    parser.add_argument(
         "-n",
         "--non-standard",
         dest="non_standard",
@@ -189,16 +210,19 @@ def main():
     ##########
     # Manage arguments
 
-    # -v/--verbose
-    utilsscript.init_logging(args.verbosity)
-
     infile = args.infile
     outfile = args.outfile
+    stepmin = args.stepmin
+    stepmax = args.stepmax
     is_non_standard = args.non_standard
+
+    if not os.path.isfile(infile):
+        print("Could not find file {}.".format(infile))
+        sys.exit()
 
     fields = get_fields(infile, is_non_standard)
 
-    ave, sem = compute_mean(fields, infile)
+    ave, sem = compute_mean(fields, infile, stepmin, stepmax)
 
     write_output(outfile, fields, ave, sem)
 

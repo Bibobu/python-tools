@@ -11,7 +11,6 @@ import numpy as np
 import sys
 import os
 import logging
-import utilsscript
 
 
 def get_fields(infile, is_non_standard):
@@ -172,14 +171,6 @@ def main():
         description="Script to compute lifetime of tubes of symmetric star polymers."
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        default=0,
-        action="count",
-        help="display more information",
-    )
-    parser.add_argument(
         "-f",
         "--file",
         dest="infile",
@@ -218,9 +209,6 @@ def main():
 
     ##########
     # Manage arguments
-
-    # -v/--verbose
-    utilsscript.init_logging(args.verbosity)
 
     infile = args.infile
     outfile = args.outfile

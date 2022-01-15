@@ -11,12 +11,12 @@ import sys
 
 import re
 import GCcolors
-import povray as pov
 from itertools import cycle
 
 import numpy as np
 from scipy.signal import savgol_filter
 
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 # plt.rcParams.update({'lines.markeredgewidth': 4})
 plt.rcParams.update({'font.size': 22, 'lines.linewidth': 3.})
@@ -310,7 +310,7 @@ def main():
                         help='File name followed by columns and optionally lines to skip.')
     parser.add_argument('-n', '--names', dest='names',
                         nargs='+', action='append',
-                        default=[],
+                        default=[''],
                         help='Names for the legend.')
     parser.add_argument('-l', '--loglog', dest='is_log_xy',
                         action='store_true',
@@ -401,11 +401,13 @@ def main():
                   'steelblue', 'blue', 'darkblue', 'indigo']
     elif grad:
         colors = []
-        g = pov.gradient(name='aquatic')
+        col1 = np.array([2., 242., 245.])/255.
+        col2 = np.array([252., 44., 255.])/255.
         for i in range(grad):
-            x = i/grad
-            c = g.extract(x)
-            color = (c.r, c.g, c.b)
+            x = i/(grad-1)
+            # c = g.extract(x)
+            # color = (c.r, c.g, c.b)
+            color = (1-x)*col1 + x*col2
             colors.append(color)
     else:
         colors = GCcolors.color_list

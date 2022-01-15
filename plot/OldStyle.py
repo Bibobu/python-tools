@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-An old journal style plotting configuration file
+An old scitific journal style inspired plotting configuration file
 '''
 
 import numpy as np
@@ -55,25 +55,16 @@ marker_list = ['o', 's', 'v', '^']
 plt.rcParams['axes.prop_cycle'] = plt.cycler(color=color_list) * (plt.cycler(linestyle=linestyle_list) + plt.cycler(marker=marker_list))
 
 ##### SOME EXAMPLES FOR TESTING PURPOSE ####
-##### WITH SOME PERSONAL ADVICES
-
-# 1) Better to set font and stuff for each axes
-# 2) The bigger the better
 
 ##### Plotting linear data
 # npoints = 10
 # for i in range(12):
 #     data = np.linspace(0, 1, 10)
 #     plt.plot((i+1)*data, label=" ".join(['data', str(i+1)]))
-# ax = plt.gca()  # Get current axes to set properties
-# ax.legend(frameon=False)  # Fat font, no frame
+# ax = plt.gca()
+# ax.legend(frameon=False)
 # ax.set_xlabel(r"PIF ($\int_{-\infty}^{3} \frac{x}{l_0}$)")
 # ax.set_ylabel("POUET")
-# 
-##### Plotting heatmap
-# data = np.random.rand(20, 20)
-# plt.pcolormesh(data, cmap=GCcmap, rasterized=True)  # Data is output from ListedColormap
-# plt.colorbar(ax = plt.gca())  # Puts the colorbar on the side
 
 ##### Show result
 plt.show()

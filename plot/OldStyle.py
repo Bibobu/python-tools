@@ -61,15 +61,15 @@ plt.rcParams['axes.prop_cycle'] = plt.cycler(color=color_list) * (plt.cycler(lin
 # 2) The bigger the better
 
 ##### Plotting linear data
-npoints = 10
-for i in range(12):
-    data = np.linspace(0, 1, 10)
-    plt.plot((i+1)*data, label=" ".join(['data', str(i+1)]))
-ax = plt.gca()  # Get current axes to set properties
-ax.legend(frameon=False)  # Fat font, no frame
-ax.set_xlabel(r"PIF ($\int_{-\infty}^{3} \frac{x}{l_0}$)")
-ax.set_ylabel("POUET")
-
+# npoints = 10
+# for i in range(12):
+#     data = np.linspace(0, 1, 10)
+#     plt.plot((i+1)*data, label=" ".join(['data', str(i+1)]))
+# ax = plt.gca()  # Get current axes to set properties
+# ax.legend(frameon=False)  # Fat font, no frame
+# ax.set_xlabel(r"PIF ($\int_{-\infty}^{3} \frac{x}{l_0}$)")
+# ax.set_ylabel("POUET")
+# 
 ##### Plotting heatmap
 # data = np.random.rand(20, 20)
 # plt.pcolormesh(data, cmap=GCcmap, rasterized=True)  # Data is output from ListedColormap

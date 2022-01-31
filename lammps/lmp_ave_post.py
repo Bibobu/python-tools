@@ -168,7 +168,7 @@ def write_output(outfile, fields, ave, sem):
 def main():
 
     parser = argparse.ArgumentParser(
-        description="Script to compute lifetime of tubes of symmetric star polymers."
+        description="Script to compute ave and standard error from lammps ave/* output"
     )
     parser.add_argument(
         "-f",

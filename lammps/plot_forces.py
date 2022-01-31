@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-Plot LAMMPS forces
+Plot LAMMPS forces.
 '''
 
 import argparse
@@ -10,7 +10,6 @@ import numpy as np
 import os
 import logging
 import sys
-import GCcolors
 from matplotlib import pyplot as plt
 
 

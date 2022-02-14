@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+'''
+Converts lpg molecule file to .ff format
+'''
+
+import argparse
+import numpy as np
+import os
+import logging
+import sys
+import utilsscript
+import lammps as lmp
+
+
+def read_input(infile):
+    atoms = {}
+    bonds = {}
+    angles = {}
+    dihedrals = {}
+    impropers = {}
+    with open(infile, 'r') as f:
+        line = f.readline()
+        while "Masses" not in line:
+            if 'atoms' in line:
+                nat = int(line.split()[0])
+            if 'bonds' in line:
+                nbo = int(line.split()[0])
+            if 'angles' in line:
+                nan = int(line.split()[0])
+            if 'dihedrals' in line:
+                ndi = int(line.split()[0])
+            if 'impropers' in line:
+                nim = int(line.split()[0])
+            line = f.readline()
+        line = f.readline()
+        for i in range(nat):
+            atom = {}
+            line = f.readline()
+            line = line.split()
+            atom["mass"] = float(line[1])
+            try:
+                atom["name"] = line[3]
+            except IndexError:
+                atom["name"] = "unnamed"
+            atoms[i+1] = atom
+        while "Pair Coeffs" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nat):
+            line = f.readline().split()
+            coeffs = list(map(float, line[1:]))
+            atoms[i+1]["coeffs"] = coeffs
+        while "Bond Coeffs" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nbo):
+            line = f.readline().split()
+            bond = {}
+            coeffs = list(map(float, line[1:]))
+            bond["coeffs"] = coeffs
+            bonds[i+1] = bond
+        while "Angle Coeffs" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nan):
+            line = f.readline().split()
+            angle = {}
+            coeffs = list(map(float, line[1:]))
+            angle["coeffs"] = coeffs
+            angles[i+1] = angle
+        while "Dihedral Coeffs" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(ndi):
+            line = f.readline().split()
+            dihedral = {}
+            coeffs = list(map(float, line[1:]))
+            dihedral["coeffs"] = coeffs
+            dihedrals[i+1] = dihedral
+        while "Improper Coeffs" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nim):
+            line = f.readline().split()
+            improper = {}
+            coeffs = list(map(float, line[1:]))
+            improper["coeffs"] = coeffs
+            impropers[i+1] = improper
+        while "Atoms" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nat):
+            line = f.readline().split()
+            q = float(line[3])
+            atoms[i+1]["charge"] = q
+        while "Bonds" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nbo):
+            line = f.readline().split()
+            bond_ats = list(map(int, line[2:]))
+            bonds[i+1]["atoms"] = bond_ats
+        while "Angles" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nan):
+            line = f.readline().split()
+            angle_ats = list(map(int, line[2:]))
+            angles[i+1]["atoms"] = angle_ats
+        while "Dihedrals" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(ndi):
+            line = f.readline().split()
+            dihedral_ats = list(map(int, line[2:]))
+            dihedrals[i+1]["atoms"] = dihedral_ats
+        while "Impropers" not in line:
+            line = f.readline()
+        line = f.readline()
+        for i in range(nim):
+            line = f.readline().split()
+            improper_ats = list(map(int, line[2:]))
+            impropers[i+1]["atoms"] = improper_ats
+    pot = {}
+    pot["atoms"] = atoms
+    pot["bonds"] = bonds
+    pot["angles"] = angles
+    pot["dihedrals"] = dihedrals
+    pot["impropers"] = impropers
+    return pot
+
+
+def write_pot(pot, outfile):
+    atoms = pot["atoms"]
+    bonds = pot["bonds"]
+    angles = pot["angles"]
+    dihedrals = pot["dihedrals"]
+    impropers = pot["impropers"]
+    with open(outfile, 'w') as f:
+        f.write("# ff file from data2ff and {} file\n".format(outfile))
+        f.write("# kcal/mol\n# Probably OPLS\n\n")
+        f.write("ATOMS\n")
+        f.write("# type m/g.mol-1   q/e   pot   r/A    eps/kcal.mol-1\n")
+        for i in range(len(atoms)):
+            atom = atoms[i+1]
+            f.write(
+                "{:<4s} {:<4s} {:<5.3f} {:<8.6f} {:^4s} {:<8.6f} {:<8.6f}\n"
+                .format(
+                    atom["name"],
+                    atom["name"],
+                    atom["mass"],
+                    atom["charge"],
+                    "lj",
+                    atom["coeffs"][1],
+                    atom["coeffs"][0]
+                    )
+            )
+        f.write("\n")
+        f.write("BONDS\n")
+        for i in range(len(bonds)):
+            bond = bonds[i+1]
+            at1, at2 = bond["atoms"]
+            at1_name = atoms[at1]["name"]
+            at2_name = atoms[at2]["name"]
+            f.write(
+                "{:4s} {:4s} {:^4s} {:12.6f} {:12.6f}\n"
+                .format(
+                    at1_name,
+                    at2_name,
+                    "harm",
+                    bond["coeffs"][1],
+                    2*bond["coeffs"][0]
+                    )
+                )
+        f.write("\n")
+        f.write("ANGLES\n")
+        for i in range(len(angles)):
+            angle = angles[i+1]
+            at1, at2, at3 = angle["atoms"]
+            at1_name = atoms[at1]["name"]
+            at2_name = atoms[at2]["name"]
+            at3_name = atoms[at3]["name"]
+            f.write(
+                "{:4s} {:4s} {:4s} {:^4s} {:12.6f} {:12.6f}\n"
+                .format(
+                    at1_name,
+                    at2_name,
+                    at3_name,
+                    "harm",
+                    angle["coeffs"][1],
+                    2*angle["coeffs"][0]
+                    )
+                )
+        f.write("\n")
+        f.write("DIHEDRALS\n")
+        for i in range(len(dihedrals)):
+            dihedral = dihedrals[i+1]
+            at1, at2, at3, at4 = dihedral["atoms"]
+            at1_name = atoms[at1]["name"]
+            at2_name = atoms[at2]["name"]
+            at3_name = atoms[at3]["name"]
+            at4_name = atoms[at4]["name"]
+            f.write(
+                "{:4s} {:4s} {:4s} {:4s} {:^4s} {:12.6f} {:12.6f} {:12.6f}\n"
+                .format(
+                    at1_name,
+                    at2_name,
+                    at3_name,
+                    at4_name,
+                    "nharmonic",
+                    dihedral["coeffs"][1],
+                    dihedral["coeffs"][2],
+                    dihedral["coeffs"][3]
+                    )
+                )
+        f.write("\n")
+        f.write("IMPROPERS\n")
+        for i in range(len(impropers)):
+            improper = impropers[i+1]
+            at1, at2, at3, at4 = improper["atoms"]
+            at1_name = atoms[at1]["name"]
+            at2_name = atoms[at2]["name"]
+            at3_name = atoms[at3]["name"]
+            at4_name = atoms[at4]["name"]
+            f.write(
+                "{:4s} {:4s} {:4s} {:4s} {:^4s} {:12.6f} {:3d} {:3d}\n"
+                .format(
+                    at2_name,
+                    at3_name,
+                    at1_name,
+                    at4_name,
+                    "cvff",
+                    improper["coeffs"][0],
+                    int(improper["coeffs"][1]),
+                    int(improper["coeffs"][2])
+                    )
+                )
+    return
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description="Script to get .ff from 1 molecule .lmp file."
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbosity",
+        default=0,
+        action="count",
+        help="display more information",
+    )
+    parser.add_argument(
+        "-i",
+        "--input",
+        dest="input",
+        default="none",
+        type=str,
+        help="Input molecule file",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        default="none",
+        type=str,
+        help="Output file",
+    )
+    args = parser.parse_args()
+
+    ##########
+    # Manage arguments
+
+    # -v/--verbose
+    utilsscript.init_logging(args.verbosity)
+    infile = args.input
+    if not os.path.isfile(infile):
+        logging.error("Input file not found")
+        sys.exit(1)
+    outfile = args.output
+
+    pot = read_input(infile)
+    write_pot(pot, outfile)
+
+    return
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit("User interruption.")

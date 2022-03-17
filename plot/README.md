@@ -27,6 +27,9 @@ grayscale (no "colors online" bullshit). Here is an example:
 
 ![An image to show the style.](./Test_picture.png)
 
+If `Old.mplstyle` is in `.config/matplotlib/stylelib` (default on Linux systems)
+or your matplotlib config directory, `qp` will try to use it as a default.
+
 ## Other scripts
 
 Other scripts are very specific stuff and all. Non of then is to be released

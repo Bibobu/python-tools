@@ -26,3 +26,8 @@ The idea is essentially that the figures can be understood printed in
 grayscale (no "colors online" bullshit). Here is an example:
 
 ![An image to show the style.](./Test_picture.png)
+
+## Other scripts
+
+Other scripts are very specific stuff and all. Non of then is to be released
+used by anyone else yet. But you can give them a look if you want.

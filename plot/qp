@@ -212,8 +212,7 @@ def plot_sep_fil(data, fmt, is_log, legend, sy, hline, vline):
     return [fig, axes]
 
 
-def plot_data(data, colors, fmt, is_log, legend, names, sy, hline, vline):
-    # color_iter = cycle(colors)
+def plot_data(data, fmt, is_log, legend, names, sy, hline, vline):
     plt.figure(figsize=(40, 30))
     namelist = iter(names)
     ax = plt.gca()
@@ -321,8 +320,8 @@ def main():
                         type=float, default=1, help='scale for y')
     parser.add_argument('-nl', '--no-legend', dest='no_legend', action='store_true',
                         help='removes the legend')
-    parser.add_argument('-nGC', '--no-colors', dest='noGC', action='store_true',
-                        help='no nice colors')
+    parser.add_argument('-c', '--colors', dest='colors', nargs='*',
+                        help='A list of colors to use instead of default')
     parser.add_argument('-gr', '--gradient', dest='grad',
                         type=int, default=0,
                         help='use n colors from aquatic gradient (thanks Florent)')
@@ -364,13 +363,11 @@ def main():
         is_log = (0, 0)
 
     sg = args.SG
-    grad = args.grad
     if args.names:
         names = args.names[0]
     else:
         names = ['']
     legend = not args.no_legend
-    noGC = args.noGC
 
     if not inpt:
         sys.exit('No file provided as input source.')
@@ -392,30 +389,33 @@ def main():
         plt.style.use('Old')
     except Exception:
         pass
-    # linestyle_list = ['-', '--', '-.', ':']
-    # color_list = ['#000000', '#888888', '#CCCCCC']
-    # color_list = ['#000000']
-    # marker_list = ['o', 's', 'v', '^']
-    # plt.rcParams['axes.prop_cycle'] = plt.cycler(color=color_list) * (plt.cycler(linestyle=linestyle_list) + plt.cycler(marker=marker_list))
     regex_sk = re.compile(r'^\d+$')
-    if noGC:
-        colors = ['black', 'darkred', 'red',
-                  'orangered', 'darkorange', 'orange',
-                  'olive', 'darkolivegreen', 'chartreuse',
-                  'forestgreen', 'lightseagreen', 'lightskyblue',
-                  'steelblue', 'blue', 'darkblue', 'indigo']
-    elif grad:
-        colors = []
+    mycolors = ['000000', '888888', 'CCCCCC']
+    mylinestyles = ['-', '--', '-.', ':']
+    mymarkers = ['o', 's', 'v', '^']
+    make_new_cycler = False
+    if args.colors:
+        mycolors = args.colors
+        make_new_cycler = True
+    elif args.grad:
+        mycolors = []
         col1 = np.array([2., 242., 245.])/255.
         col2 = np.array([252., 44., 255.])/255.
-        for i in range(grad):
-            x = i/(grad-1)
-            # c = g.extract(x)
-            # color = (c.r, c.g, c.b)
+        for i in range(args.grad):
+            x = i/(args.grad-1)
             color = (1-x)*col1 + x*col2
-            colors.append(color)
-    else:
-        colors = ['blue', 'red', 'green']  # GCcolors.color_list
+            mycolors.append(color)
+        make_new_cycler = True
+
+    if make_new_cycler:
+        mycycler = (plt.cycler(color=mycolors) * (
+            plt.cycler(linestyle=mylinestyles) + plt.cycler(marker=mymarkers)
+                )
+            )
+        plt.rcParams['axes.prop_cycle'] = mycycler
+
+    for c in mycycler:
+        print(c)
     columns_list = []
     data = []
 
@@ -435,11 +435,11 @@ def main():
         data.append(read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg))
 
     if sep_col:
-        fig, axes = plot_sep_col(data, colors, fmt, is_log, legend, sy, hline, vline)
+        fig, axes = plot_sep_col(data, fmt, is_log, legend, sy, hline, vline)
     elif sep_files:
-        fig, axes = plot_sep_fil(data, colors, fmt, is_log, legend, sy, hline, vline)
+        fig, axes = plot_sep_fil(data, fmt, is_log, legend, sy, hline, vline)
     else:
-        plot_data(data, colors, fmt, is_log, legend, names, sy, hline, vline)
+        plot_data(data, fmt, is_log, legend, names, sy, hline, vline)
 
     plt.xlabel(xlab)
     plt.ylabel(ylab)

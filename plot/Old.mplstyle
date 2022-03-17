@@ -1,0 +1,39 @@
+# I don't like other matplotlib styles so I made this one with an old school
+# journal feeling that I prefer. It is intended to make most figures readable
+# even printed in black and white. Put this file in your matplotlib config file
+# directory in the stylelib directory, use pyplot.style.use('Old') in your
+# script and you're done.
+# See https://matplotlib.org/stable/tutorials/introductory/customizing.html
+# for more info.
+# You can use a symbolic link if you forked the git repo and want to modify or
+# update it regularly.
+
+font.family : Latin Modern Math
+font.weight : normal
+font.size : 20
+font.variant : small-caps # Unfortunately, this does not work yet with matplotlib
+axes.linewidth : 1
+lines.linewidth : 3
+axes.labelsize : 20
+legend.fontsize : 20
+xtick.major.size : 15
+xtick.minor.visible : True
+xtick.minor.size : 7
+xtick.labelsize : 20
+ytick.labelsize : 20
+xtick.direction : in
+xtick.top : True
+ytick.direction : in
+ytick.right : True
+ytick.major.size : 15
+ytick.minor.visible : True
+ytick.minor.size : 7
+xtick.major.width : 1
+ytick.major.width : 1
+xtick.minor.width : 1
+ytick.minor.width : 1
+lines.markerfacecolor : white
+lines.markeredgecolor : black
+lines.markersize : 10
+axes.grid : True
+axes.prop_cycle: cycler(color=['000000', '888888', 'CCCCCC']) * (cycler(linestyle=['-', '--', '-.', ':']) + cycler(marker=['o', 's', 'v', '^']))

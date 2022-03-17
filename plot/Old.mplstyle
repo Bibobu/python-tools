@@ -1,17 +1,21 @@
 # I don't like other matplotlib styles so I made this one with an old school
-# journal feeling that I prefer. It is intended to make most figures readable
-# even printed in black and white. Put this file in your matplotlib config file
-# directory in the stylelib directory, use pyplot.style.use('Old') in your
-# script and you're done.
+# scientific journal touch that I prefer (hence the name).
+# It is intended to make most figures readable whitout colors.
+#
+# HOW TO USE:
+# 1) Put this file in your matplotlib config file directory in a 'stylelib'
+# sub directory. You can use a symbolic link if you forked the git repo or want
+# to modify/update it regularly.
+# 2) use pyplot.style.use('Old') in your script and you're done.
 # See https://matplotlib.org/stable/tutorials/introductory/customizing.html
 # for more info.
-# You can use a symbolic link if you forked the git repo and want to modify or
-# update it regularly.
+# Please cite G.Clavier if used (acknowledgment is fine).
 
 font.family : Latin Modern Math
 font.weight : normal
 font.size : 20
-font.variant : small-caps # Unfortunately, this does not work yet with matplotlib
+# Unfortunately, small-caps does not work yet with matplotlib
+font.variant : small-caps
 axes.linewidth : 1
 lines.linewidth : 3
 axes.labelsize : 20

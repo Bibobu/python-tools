@@ -10,13 +10,16 @@ import os
 import sys
 
 import re
-from itertools import cycle
 
 import numpy as np
 from scipy.signal import savgol_filter
 
-import matplotlib as mpl
 from matplotlib import pyplot as plt
+
+try:
+    plt.style.use('Old')
+except Exception:
+    pass
 
 
 def read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg):
@@ -291,10 +294,10 @@ def main():
                         help='Use symbols and not lines')
     parser.add_argument('-fmt', '--fmt', dest='fmt',
                         default='xy',
-                        help='Format of the plot (xy, xydy, xydxdy, xydx). [default = xy]')
+                        help='Format (xy, xydy, xydxdy, xydx). [default = xy]')
     parser.add_argument('-i', '--input', dest='input',
                         nargs='+', action='append',
-                        help='File name followed by columns and optionally lines to skip.')
+                        help='Filename with columns and lines to skip if any.')
     parser.add_argument('-n', '--names', dest='names',
                         nargs='+', action='append',
                         default=[],
@@ -318,13 +321,14 @@ def main():
                         type=float, default=1, help='scale for x')
     parser.add_argument('-ys', '--yscale', dest='ysca',
                         type=float, default=1, help='scale for y')
-    parser.add_argument('-nl', '--no-legend', dest='no_legend', action='store_true',
+    parser.add_argument('-nl', '--no-legend', dest='no_legend',
+                        action='store_true',
                         help='removes the legend')
     parser.add_argument('-c', '--colors', dest='colors', nargs='*',
                         help='A list of colors to use instead of default')
     parser.add_argument('-gr', '--gradient', dest='grad',
                         type=int, default=0,
-                        help='use n colors from aquatic gradient (thanks Florent)')
+                        help='use n colors from aquatic gradient (thks F.G)')
     parser.add_argument('-sg', '--savitsky-golay',
                         dest='SG', type=int, default=0,
                         help='Savitsky-golay window (default=0=none)')
@@ -385,10 +389,6 @@ def main():
     else:
         sys.exit('Unknown fmt in -fmt option.')
 
-    try:
-        plt.style.use('Old')
-    except Exception:
-        pass
     regex_sk = re.compile(r'^\d+$')
     mycolors = ['000000', '888888', 'CCCCCC']
     mylinestyles = ['-', '--', '-.', ':']
@@ -414,8 +414,6 @@ def main():
             )
         plt.rcParams['axes.prop_cycle'] = mycycler
 
-    for c in mycycler:
-        print(c)
     columns_list = []
     data = []
 

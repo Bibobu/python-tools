@@ -5,21 +5,70 @@
 My module to plot a serie of files.
 '''
 
-import argparse as ap
 import os
 import sys
-
 import re
+import logging
+import argparse as ap
 
 import numpy as np
 from scipy.signal import savgol_filter
-
 from matplotlib import pyplot as plt
 
 try:
     plt.style.use('Old')
 except Exception:
     pass
+
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
+FIG_WIDTH = SCREEN_WIDTH/2./96.
+FIG_HEIGHT = SCREEN_HEIGHT/96.
+
+
+class Toplot:
+    def __init__(self, file="data.txt", xdata=0, ydata=0, xcol=0, ycol=0):
+        self.file = file
+        self.xdata = xdata
+        self.ydata = ydata
+        self.xerr = 0
+        self.yerr = 0
+        self.xcol = xcol
+        self.ycol = ycol
+        self.label = '-'.join([self.file, str(self.xcol), str(self.ycol)])
+
+    def add_error(self, ax, err):
+        if ax == 'dx':
+            self.xerr = err
+        elif ax == 'dy':
+            self.yerr = err
+        else:
+            logging.info('Unknown error axis.\n')
+
+    def add_label(self, label):
+        self.label = label
+
+
+def check_log_scales(args):
+    logx, logy = False, False
+    if args.is_log_xy:
+        logx, logy = True, True
+    elif args.is_log_x:
+        logx = True
+    elif args.is_log_y:
+        logy = True
+
+    return (logx, logy)
+
+
+def change_font(fontsize):
+    plt.rcParams['font.size'] = fontsize
+    plt.rcParams['axes.labelsize'] = fontsize
+    plt.rcParams['axes.titlesize'] = fontsize
+    plt.rcParams['figure.labelsize'] = fontsize
+    plt.rcParams['legend.fontsize'] = fontsize
+    plt.rcParams['xtick.labelsize'] = fontsize
+    plt.rcParams['ytick.labelsize'] = fontsize
 
 
 def read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg):
@@ -29,7 +78,6 @@ def read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg):
     by array slices containing data.
     '''
     data = np.loadtxt(fle, skiprows=skip)
-    output = [fle]
     for pair in columns_list:
         partition = pair[0].split(':')
         x = int(partition[0])
@@ -45,236 +93,90 @@ def read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg):
         y_data = ysca*data[:, y-1]
         if sg:
             y_data = savgol_filter(y_data, sg, 3)
-        if fmt == 'xy':
-            output.append([x, y, x_data, y_data])
-        elif fmt == 'xydy':
+
+        curve = Toplot(file=fle, xdata=x_data, ydata=y_data, xcol=x, ycol=y)
+        if fmt == 'xydy':
             dy_data = ysca*data[:, dy-1]
-            output.append([x, y, x_data, y_data, dy_data])
+            curve.add_error('dy', dy_data)
         elif fmt == 'xydx':
             dx_data = xsca*data[:, dx-1]
-            output.append([x, y, x_data, y_data, dx_data])
+            curve.add_error('dx', dx_data)
         elif fmt == 'xydxdy':
             dx_data = xsca*data[:, dx-1]
             dy_data = ysca*data[:, dy-1]
-            output.append([x, y, x_data, y_data, dx_data, dy_data])
-    return output
+            curve.add_error('dx', dx_data)
+            curve.add_error('dy', dy_data)
+
+    return curve
 
 
-def plot_sep_col(data, fmt, is_log, legend, sy, hline, vline):
-    '''
-    Makes separated ordered columns
-    wise: all 1:2 together, all 1:3 together
-    and so on...
-    '''
-    columns = []
+def plot_data(data, fmt, is_log, legend, hline, vline, sf, sc):
+    fig = plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
+    files, nfiles, maxcol = [], 1, 1
+    if sf or sc:
+        if sf:
+            files = list(set([d.file for d in data]))
+        else:
+            files = list(set([''.join([str(d.xcol), str(d.ycol)]) for d in data]))
+        nfiles = len(files)
+        if nfiles % 2 == 0:
+            maxcol = 2
+        if nfiles % 3 == 0:
+            maxcol = 3
+
+    axes = fig.subplots(nfiles//maxcol, maxcol, sharex=True, sharey=True)
+    # This is because subplots returns inconsistent type (either list or ax)
+    if not sf and not sc:
+        axes = [axes]
+
     for d in data:
-        for s in d[1:]:
-            columns.append([s[0], s[1]])
-    for i in range(len(columns)):
-        try:
-            x = columns[i][0]
-            y = columns[i][1]
-            j = i
-            while True:
-                try:
-                    j += 1
-                    pair = columns[j]
-                    if pair[0] == x and pair[1] == y:
-                        columns.pop(j)
-                except IndexError:
-                    break
-        except IndexError:
-            break
+        # Choose the right subplot if any
+        if sf:
+            ax = axes[files.index(d.file)]
+        elif sc:
+            ax = axes[files.index(''.join([str(d.xcol), str(d.ycol)]))]
+        else:
+            ax = axes[0]
 
-    plot_nb = len(columns)
-    if plot_nb % 3 == 0:
-        fig, axes = plt.subplots(plot_nb//3, 3, sharex=True, figsize=(20, 10))
-    elif plot_nb % 2 == 0:
-        fig, axes = plt.subplots(plot_nb//2, 2, sharex=True, figsize=(20, 10))
-    else:
-        fig, axes = plt.subplots(plot_nb, 1, sharex=True, figsize=(20, 10))
-    for pair, ax in zip(columns, axes.flatten()):
-        suf = ":".join([str(pair[0]), str(pair[1])])
-        for d in data:
-            label = d[0]
-            for subdata in d[1:]:
-                x = subdata[0]
-                y = subdata[1]
-                if not(x == pair[0] and y == pair[1]):
-                    continue
-                lab = label
-                x_data = subdata[2]
-                y_data = subdata[3]
-                if fmt == 'xy':
-                    ax.plot(x_data, y_data,
-                            label=lab,
-                            )
-                elif fmt == 'xydy':
-                    dy = subdata[4]
-                    plt.plot(x_data, y_data,
-                             label=lab,
-                             )
-                    up = y_data+dy
-                    down = y_data-dy
-                    plt.fill_between(
-                            x_data, up, down,
-                            alpha=0.2,
-                            linewidth=0
-                            )
-                elif fmt == 'xydx':
-                    dx = subdata[4]
-                    ax.errorbar(x_data, y_data,
-                                xerr=dx,
-                                capsize=4, capthick=2,
-                                label=lab,
-                                )
-                elif fmt == 'xydxdy':
-                    dx = subdata[4]
-                    dy = subdata[5]
-                    ax.errorbar(x_data, y_data,
-                                xerr=dx, yerr=dy,
-                                capsize=4, capthick=2,
-                                label=lab,
-                                )
-                if is_log[0]:
-                    ax.set_xscale('log')
-                if is_log[1]:
-                    ax.set_yscale('log')
-        for h in hline:
-            plt.hlines(y=h, xmin=-np.inf, xmax=np.inf, linestyle='--')
-        for v in vline:
-            plt.vlines(x=v, ymin=-np.inf, ymax=np.inf, linestyle='--')
-        if legend:
-            ncol = max([1, len(data)//3])
-            ax.legend(loc='upper left', ncol=ncol)
-        ax.set(title=suf)
-
-    return [fig, axes]
-
-
-def plot_sep_fil(data, fmt, is_log, legend, sy, hline, vline):
-    plot_nb = len(data)
-    if plot_nb % 3 == 0:
-        fig, axes = plt.subplots(plot_nb//3, 3, sharex=True, figsize=(20, 10))
-    elif plot_nb % 2 == 0:
-        fig, axes = plt.subplots(plot_nb//2, 2, sharex=True, figsize=(20, 10))
-    else:
-        fig, axes = plt.subplots(plot_nb, 1, sharex=True, figsize=(20, 10))
-    for d, ax in zip(data, axes.flatten()):
-        suf = d[0]
-        for subdata in d[1:]:
-            x = subdata[0]
-            y = subdata[1]
-            lab = ":".join([str(x), str(y)])
-            x_data = subdata[2]
-            y_data = subdata[3]
-            if fmt == 'xy':
-                ax.plot(x_data, y_data,
-                        label=lab,
+        # Very special cases
+        if fmt == 'xydxdy':
+            ax.errorbar(d.xdata, d.ydata,
+                        xerr=d.xerr, yerr=d.yerr,
+                        capsize=4, capthick=2,
+                        label=d.lab,
                         )
-            elif fmt == 'xydy':
-                dy = subdata[4]
-                plt.plot(x_data, y_data,
-                         label=lab,
-                         )
-                up = y_data+dy
-                down = y_data-dy
-                plt.fill_between(
-                        x_data, up, down,
+        else:
+            ax.plot(d.xdata, d.ydata,
+                    label=d.label,)
+
+            if fmt == 'xydy':
+                up = d.ydata+d.yerr
+                down = d.ydata-d.yerr
+                ax.fill_between(
+                        d.xdata, up, down,
                         alpha=0.2,
                         linewidth=0
                         )
             elif fmt == 'xydx':
-                dx = subdata[4]
-                ax.errorbar(x_data, y_data,
-                            xerr=dx,
-                            capsize=4, capthick=2,
-                            label=lab,
-                            )
-            elif fmt == 'xydxdy':
-                dx = subdata[4]
-                dy = subdata[5]
-                ax.errorbar(x_data, y_data,
-                            xerr=dx, yerr=dy,
-                            capsize=4, capthick=2,
-                            label=lab,
-                            )
-            if is_log[0]:
-                ax.set_xscale('log')
-            if is_log[1]:
-                ax.set_yscale('log')
-        for h in hline:
-            plt.hlines(y=h, xmin=-np.inf, xmax=np.inf, linestyle='--')
-        for v in vline:
-            plt.vlines(x=v, ymin=-np.inf, ymax=np.inf, linestyle='--')
-        if legend:
-            ncol = max([1, len(data)//3])
-            ax.legend(loc='upper left', ncol=ncol)
-        ax.set(title=suf)
-
-    return [fig, axes]
-
-
-def plot_data(data, fmt, is_log, legend, names, sy, hline, vline):
-    plt.figure(figsize=(40, 30))
-    namelist = iter(names)
-    ax = plt.gca()
-    for h in hline:
-        ax.axhline(y=float(h), linestyle='--')
-    for v in vline:
-        ax.axvline(x=float(v), ymin=0, ymax=1, linestyle='--')
-    for d in data:
-        try:
-            label = next(namelist)
-        except StopIteration:
-            label = False
-        for subdata in d[1:]:
-            x = subdata[0]
-            y = subdata[1]
-            if not label:
-                label = d[0]
-                suf = ":".join([str(x), str(y)])
-                lab = label+suf
-            else:
-                lab = label
-            x_data = subdata[2]
-            y_data = subdata[3]
-            if fmt == 'xy':
-                plt.plot(x_data, y_data,
-                         label=lab,)
-            elif fmt == 'xydy':
-                dy = subdata[4]
-                plt.plot(x_data, y_data,
-                         label=lab,)
-                up = y_data+dy
-                down = y_data-dy
-                plt.fill_between(
-                        x_data, up, down,
+                right = d.xdata+d.xerr
+                left = d.xdata-d.xerr
+                ax.fill_betweenx(
+                        d.ydata, right, left,
                         alpha=0.2,
                         linewidth=0
                         )
-            elif fmt == 'xydx':
-                dx = subdata[4]
-                plt.errorbar(x_data, y_data,
-                             xerr=dx,
-                             capsize=4, capthick=2,
-                             label=lab,
-                             )
-            elif fmt == 'xydxdy':
-                dx = subdata[4]
-                dy = subdata[5]
-                plt.errorbar(x_data, y_data,
-                             xerr=dx, yerr=dy,
-                             capsize=4, capthick=2,
-                             label=lab,
-                             )
-            if is_log[0]:
-                plt.xscale('log')
-            if is_log[1]:
-                plt.yscale('log')
-    if legend:
-        ncol = max([1, len(data)//3])
-        plt.legend(ncol=ncol)
+    for ax in axes:
+        for h in hline:
+            ax.axhline(y=float(h), linestyle='--')
+        for v in vline:
+            ax.axvline(x=float(v), ymin=0, ymax=1, linestyle='--')
+        if is_log[0]:
+            ax.xscale('log')
+        if is_log[1]:
+            ax.yscale('log')
+        if legend:
+            # ncol = max([1, len(data)//3])
+            ax.legend()
     return
 
 
@@ -289,9 +191,9 @@ def main():
     parser.add_argument('-sc', '--separated-columns', dest='sc',
                         action='store_true',
                         help='Plot in separated windows based on columns.')
-    parser.add_argument('-sy', '--symbols', dest='sy',
+    parser.add_argument('-xkcd',
                         action='store_true',
-                        help='Use symbols and not lines')
+                        help='XKCD style. For placeholders and fun.')
     parser.add_argument('-fmt', '--fmt', dest='fmt',
                         default='xy',
                         help='Format (xy, xydy, xydxdy, xydx). [default = xy]')
@@ -299,7 +201,7 @@ def main():
                         nargs='+', action='append',
                         help='Filename with columns and lines to skip if any.')
     parser.add_argument('-n', '--names', dest='names',
-                        nargs='+', action='append',
+                        nargs='+', action='extend',
                         default=[],
                         help='Names for the legend.')
     parser.add_argument('-l', '--loglog', dest='is_log_xy',
@@ -311,7 +213,13 @@ def main():
     parser.add_argument('-ly', '--logy', dest='is_log_y',
                         action='store_true',
                         help='Plot in semilog scale (y).')
-    parser.add_argument('-t', '--title', dest='ttl', default='Your nice graph',
+    parser.add_argument('-nm', '--nomarker', dest='nomarker',
+                        action='store_true',
+                        help='Remove markers')
+    parser.add_argument('--noline', dest='noline',
+                        action='store_true',
+                        help='Remove lines')
+    parser.add_argument('-t', '--title', dest='ttl', default='',
                         type=str, help='Title of the plot.')
     parser.add_argument('-xl', '--xlabel', dest='xlab',
                         default=False, help='label for x')
@@ -321,10 +229,12 @@ def main():
                         type=float, default=1, help='scale for x')
     parser.add_argument('-ys', '--yscale', dest='ysca',
                         type=float, default=1, help='scale for y')
+    parser.add_argument('-fs', '--fsize', dest='fontsize',
+                        type=int, default=0, help='General fontsize')
     parser.add_argument('-nl', '--no-legend', dest='no_legend',
                         action='store_true',
                         help='removes the legend')
-    parser.add_argument('-c', '--colors', dest='colors', nargs='*',
+    parser.add_argument('-c', '--colors', dest='colors', nargs='+',
                         help='A list of colors to use instead of default')
     parser.add_argument('-gr', '--gradient', dest='grad',
                         type=int, default=0,
@@ -333,17 +243,20 @@ def main():
                         dest='SG', type=int, default=0,
                         help='Savitsky-golay window (default=0=none)')
     parser.add_argument('--hline', dest='hline', nargs='+',
-                        action='append',
+                        default=[], action='extend',
                         help='Coordinate of horizontal lines to add')
     parser.add_argument('--vline', dest='vline', nargs='+',
-                        action='append',
+                        default=[], action='extend',
                         help='Coordinate of vertical lines to add')
+    parser.add_argument('-o', '--output', dest='output',
+                        default=None,
+                        help='Name of an output file (no screen show)')
 
     args = parser.parse_args()
 
-    sep_files = args.sf
-    sep_col = args.sc
-    sy = args.sy
+    sf = args.sf
+    sc = args.sc
+    xkcd = args.xkcd
     fmt = args.fmt
     inpt = args.input
     graph_title = args.ttl
@@ -351,27 +264,14 @@ def main():
     ylab = args.ylab
     xsca = args.xsca
     ysca = args.ysca
-    hline = args.hline[0] if args.hline else []
-    vline = args.vline[0] if args.vline else []
-
-    is_log_xy = args.is_log_xy
-    is_log_x = args.is_log_x
-    is_log_y = args.is_log_y
-    if is_log_xy:
-        is_log = (1, 1)
-    elif is_log_x:
-        is_log = (1, 0)
-    elif is_log_y:
-        is_log = (0, 1)
-    else:
-        is_log = (0, 0)
-
+    hline = args.hline
+    vline = args.vline
+    fontsize = args.fontsize
     sg = args.SG
-    if args.names:
-        names = args.names[0]
-    else:
-        names = ['']
+
     legend = not args.no_legend
+
+    is_log = check_log_scales(args)
 
     if not inpt:
         sys.exit('No file provided as input source.')
@@ -389,8 +289,7 @@ def main():
     else:
         sys.exit('Unknown fmt in -fmt option.')
 
-    regex_sk = re.compile(r'^\d+$')
-    mycolors = ['000000', '888888', 'CCCCCC']
+    mycolors = ['#000000', '#888888', '#CCCCCC']
     mylinestyles = ['-', '--', '-.', ':']
     mymarkers = ['o', 's', 'v', '^']
     make_new_cycler = False
@@ -406,6 +305,12 @@ def main():
             color = (1-x)*col1 + x*col2
             mycolors.append(color)
         make_new_cycler = True
+    if args.nomarker:
+        mymarkers = 4*['']
+        make_new_cycler = True
+    if args.noline:
+        mylinestyles = 4*['']
+        make_new_cycler = True
 
     if make_new_cycler:
         mycycler = (plt.cycler(color=mycolors) * (
@@ -414,9 +319,13 @@ def main():
             )
         plt.rcParams['axes.prop_cycle'] = mycycler
 
+    if fontsize:
+        change_font(fontsize)
+
     columns_list = []
     data = []
 
+    regex_sk = re.compile(r'^\d+$')
     for i in inpt:
         fle = i[0]
         columns_list = []
@@ -432,17 +341,27 @@ def main():
 
         data.append(read_columns(fle, columns_list, fmt, skip, xsca, ysca, sg))
 
-    if sep_col:
-        fig, axes = plot_sep_col(data, fmt, is_log, legend, sy, hline, vline)
-    elif sep_files:
-        fig, axes = plot_sep_fil(data, fmt, is_log, legend, sy, hline, vline)
-    else:
-        plot_data(data, fmt, is_log, legend, names, sy, hline, vline)
+    # Change labels if needed
+    if args.names:
+        for i, n in enumerate(args.names):
+            data[i].label = n
 
-    plt.xlabel(xlab)
-    plt.ylabel(ylab)
+    if xkcd:
+        plt.xkcd()
+
+    plot_data(data, fmt, is_log, legend, hline, vline, sf, sc)
+
+    fig = plt.gcf()
+    fig.supxlabel(xlab)
+    fig.supylabel(ylab)
     plt.title(graph_title)
-    plt.show()
+    fig.tight_layout()
+
+    if args.output:
+        plt.savefig(''.join([args.output, '.png']), dpi=plt.gcf().dpi)
+    else:
+        plt.show()
+
     return
 
 
